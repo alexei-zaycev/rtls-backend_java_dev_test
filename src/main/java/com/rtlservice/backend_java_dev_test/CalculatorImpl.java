@@ -101,7 +101,7 @@ public class CalculatorImpl
             getStates().put(key, data);
 
             getLogger().info(
-                    String.format("%s: %s: CALCULATED (result=%f, duration=%dms)",
+                    String.format("%s: %s: CALCULATED (result=%s, duration=%dms)",
                             _getInstName(),
                             _packetAsString,
                             result,
