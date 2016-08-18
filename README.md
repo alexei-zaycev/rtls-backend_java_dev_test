@@ -1,4 +1,4 @@
-Вариант решения [тестового задания на вакансию "backend java developer" в RTL Soft](https://docs.google.com/document/d/1zWgAruwiN2UAfuKSpcjshSKcue_rvAa3ITTtgqg1GWY/edit?usp=sharing)
+Вариант решения [тестового задания](https://docs.google.com/document/d/1zWgAruwiN2UAfuKSpcjshSKcue_rvAa3ITTtgqg1GWY/edit?usp=sharing) на вакансию [Backend Java разработчик](https://spb.hh.ru/vacancy/17798598) в RTL Soft
 
 1. есть класс Calculator, который реализует некие мат. вычисления:
 
