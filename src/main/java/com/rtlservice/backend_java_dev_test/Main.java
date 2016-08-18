@@ -48,7 +48,7 @@ public class Main {
             }
 
             generatorsPool.shutdown();
-            generatorsPool.awaitTermination(1, TimeUnit.MINUTES);
+            generatorsPool.awaitTermination(10, TimeUnit.MINUTES);
 
             scheduler.shutdownAndWait(10, TimeUnit.SECONDS);
 

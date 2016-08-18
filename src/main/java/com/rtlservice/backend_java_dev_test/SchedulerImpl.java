@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -68,16 +69,16 @@ public class SchedulerImpl
         return _instName;
     }
 
-    private static final AtomicLong _ID_COUNTER = new AtomicLong(1L);
-
-    protected final long generatePacketID() {
-        return _ID_COUNTER.getAndIncrement();
-    }
-
-    private static final ConcurrentMap<Short, AtomicReference<CompletableFuture<?>>> _TASKS
+    private static final ConcurrentMap<Short, AtomicReference<Map.Entry<Long, CompletableFuture<?>>>> _TASKS
             = new ConcurrentHashMap<>();
 
-    protected final ConcurrentMap<Short, AtomicReference<CompletableFuture<?>>> getTasks() {
+    private static final Function<Short, AtomicReference<Map.Entry<Long, CompletableFuture<?>>>> _TASKS__GENERATOR = key ->
+            new AtomicReference<>(
+                    new HashMap.SimpleImmutableEntry<>(
+                            0L,
+                            CompletableFuture.completedFuture(null)));
+
+    protected final ConcurrentMap<Short, AtomicReference<Map.Entry<Long, CompletableFuture<?>>>> getTasks() {
         return _TASKS;
     }
 
@@ -92,46 +93,6 @@ public class SchedulerImpl
 
         CompletableFuture<Double> result = new CompletableFuture<>();
 
-        getTasks().compute(
-                key,
-                (_key, task) -> {
-
-                    long id = generatePacketID();
-                    Map<String, Object> _data = new HashMap<>(data);
-                    _data.put(Calculator.DATA__PROP__ID, id);
-
-                    if (getLogger().isLoggable(Level.FINE)) {
-
-                        String _packetAsString = Main._packetToString(
-                                id,
-                                key,
-                                ts,
-                                _data);
-
-                        getLogger().fine(
-                                String.format("%s: schedule %s",
-                                        _getInstName(),
-                                        _packetAsString));
-                    }
-
-                    if (task == null) {
-                        task = new AtomicReference<>(CompletableFuture.completedFuture(null));
-                    }
-
-                    task.getAndSet(result)
-                            .whenCompleteAsync(
-                                    (prv, ex) -> {
-                                        try {
-                                            result.complete(getCalculator().calc(key, ts, _data));
-                                        } catch (Throwable e) {
-                                            result.completeExceptionally(e);
-                                        }
-                                    },
-                                    getExecutorService());
-
-                    return task;
-                });
-
         result.whenComplete((res, ex) -> {
             if (ex == null) {
                 calcSuccess.incrementAndGet();
@@ -139,6 +100,64 @@ public class SchedulerImpl
                 calcFailed.incrementAndGet();
             }
         });
+
+        Map.Entry<Long, CompletableFuture<?>> last
+                = getTasks()
+                .computeIfAbsent(key, _TASKS__GENERATOR)
+                .getAndUpdate(prv -> new HashMap.SimpleImmutableEntry<>(
+                        prv.getKey() + 1L,
+                        result));
+
+        long lastId = last.getKey();
+        CompletableFuture<?> lastTask = last.getValue();
+
+        long newId = lastId + 1L;
+
+        if (getLogger().isLoggable(Level.FINE)) {
+            getLogger().fine(
+                    String.format("%s: schedule %s",
+                            _getInstName(),
+                            Main._packetToString(
+                                    newId,
+                                    key,
+                                    ts,
+                                    data)));
+        }
+
+        lastTask.whenCompleteAsync((_prv, ex) -> {
+
+                    Map<String, Object> _data = null;
+
+                    try {
+
+                        _data = new HashMap<>(data);
+                        _data.put(Calculator.DATA__PROP__ID, newId);
+
+                        result.complete(
+                                getCalculator().calc(
+                                        key,
+                                        ts,
+                                        _data));
+
+                    } catch (Throwable e) {
+
+                        getLogger().log(
+                                Level.WARNING,
+                                String.format("%s: %s: FAILED",
+                                        _getInstName(),
+                                        _data != null
+                                                ? Main._packetToString(
+                                                        newId,
+                                                        key,
+                                                        ts,
+                                                        _data)
+                                                : null),
+                                ex);
+
+                        result.completeExceptionally(e);
+                    }
+                },
+                getExecutorService());
 
         return result;
     }
@@ -152,7 +171,8 @@ public class SchedulerImpl
         getExecutorService().shutdown();
         getExecutorService().awaitTermination(timeout, unit);
 
-        getLogger().info(
+        getLogger().log(
+                calcFailed.get() > 0 ? Level.WARNING : Level.INFO,
                 String.format("%s: STOPPED (success=%d, failed=%d)",
                         _getInstName(),
                         calcSuccess.get(),

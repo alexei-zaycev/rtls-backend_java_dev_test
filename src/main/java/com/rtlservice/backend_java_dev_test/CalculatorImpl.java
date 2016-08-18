@@ -89,7 +89,7 @@ public class CalculatorImpl
 
             long duration = ThreadLocalRandom.current().nextLong(
                     CALC__MIN_VALUE,
-                    CALC__MAX_VALUE);
+                    CALC__MAX_VALUE + 1L);
 
             Thread.sleep(duration);
 

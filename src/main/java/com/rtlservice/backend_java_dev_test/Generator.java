@@ -2,8 +2,9 @@ package com.rtlservice.backend_java_dev_test;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
@@ -48,7 +49,7 @@ public class Generator
 
         return (short) ThreadLocalRandom.current().nextInt(
                 KEY__MIN_VALUE,
-                KEY__MAX_VALUE);
+                KEY__MAX_VALUE + 1);
     }
 
     protected Map<String, Object> generateData() {
@@ -79,7 +80,7 @@ public class Generator
 
                 long delay = ThreadLocalRandom.current().nextLong(
                         GEN_DELAY__MIN_VALUE,
-                        GEN_DELAY__MAX_VALUE);
+                        GEN_DELAY__MAX_VALUE + 1L);
 
                 if (getLogger().isLoggable(Level.FINE)) {
                     getLogger().fine(
@@ -101,20 +102,16 @@ public class Generator
                                 key,
                                 data));
 
-                CompletionStage<Double> result = getScheduler().calc(
-                        key,
-                        now,
-                        data);
-
-                result.whenComplete((res, ex) -> {
-                   if (ex == null) {
-                       calcSuccess.incrementAndGet();
-                   } else {
-                       calcFailed.incrementAndGet();
-                   }
-                });
-
-                results[i] = result.toCompletableFuture();
+                results[i] = getScheduler()
+                        .calc(key, now, data)
+                        .whenComplete((res, ex) -> {
+                            if (ex == null) {
+                                calcSuccess.incrementAndGet();
+                            } else {
+                                calcFailed.incrementAndGet();
+                            }
+                        })
+                        .toCompletableFuture();
             }
 
             if (getLogger().isLoggable(Level.FINE)) {
@@ -123,14 +120,18 @@ public class Generator
                                 _instName));
             }
 
-            CompletableFuture.allOf(results)
-                    .join();
-//                    .get(1, TimeUnit.MINUTES);
+            try {
+                CompletableFuture.allOf(results)
+                        .join();
+//                        .get(1, TimeUnit.MINUTES);
+            } catch (CompletionException | CancellationException ex) {
+                // ignore
+            }
 
             getLogger().log(
-                    calcFailed.get() > 0 || calcSuccess.get() + calcFailed.get() != getPacketTotalCount()
-                            ? Level.WARNING
-                            : Level.INFO,
+                    calcSuccess.get() + calcFailed.get() != getPacketTotalCount()
+                            ? Level.SEVERE
+                            : (calcFailed.get() > 0 ? Level.WARNING : Level.INFO),
                     String.format("%s: STOPPED (success=%d, failed=%d)",
                             _instName,
                             calcSuccess.get(),
