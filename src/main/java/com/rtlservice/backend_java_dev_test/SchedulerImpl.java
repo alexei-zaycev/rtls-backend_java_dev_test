@@ -10,7 +10,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Очередность пакетов фиксируется внутри {@link SchedulerImpl#calc} на уровне {@link ConcurrentMap#compute}. Если же нужно именно на уровне {@link SchedulerImpl#calc},<br>
+ * Очередность пакетов фиксируется внутри {@link SchedulerImpl#calc} на уровне {@link AtomicReference#getAndUpdate}. Если же нужно именно на уровне {@link SchedulerImpl#calc},<br>
  * то следует либо снаружи обеспечить синхронизацию вызова {@link SchedulerImpl#calc} либо переопределить в потомке метод {@link SchedulerImpl#calc}, добавив synchronized<br>
  * <br>
  * например:<br>
