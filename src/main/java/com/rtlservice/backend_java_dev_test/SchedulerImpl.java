@@ -124,7 +124,8 @@ public class SchedulerImpl
                                     data)));
         }
 
-        lastTask.whenCompleteAsync((_prv, ex) -> {
+        lastTask.whenCompleteAsync(
+                (_prv, ex) -> {
 
                     Map<String, Object> _data = null;
 
