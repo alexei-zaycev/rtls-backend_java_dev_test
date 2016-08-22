@@ -1,5 +1,6 @@
 package com.rtlservice.backend_java_dev_test;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -39,19 +40,43 @@ public class CalculatorImpl
         return _STATES;
     }
 
-    private static final ConcurrentMap<Short, Long> _HISTORY
+    private static final ConcurrentMap<Short, Map.Entry<Long, Long>> _HISTORY
             = new ConcurrentHashMap<>();
 
-    protected Long checkOrder(
+    protected void checkOrder(
             short key,
-            long id) {
+            long id,
+            long ts,
+            String _packetAsString) {
 
-        Long prvId = _HISTORY.put(key, id);
+        Map.Entry<Long, Long> prv = _HISTORY.put(
+                key,
+                new HashMap.SimpleImmutableEntry<>(id, ts));
 
-        if (prvId != null && id <= prvId) {
-            return prvId;
-        } else {
-            return null;
+        if (prv != null) {
+
+            long prvId = prv.getKey();
+            long prvTs = prv.getValue();
+
+            if (id <= prvId) {
+
+                getLogger().severe(
+                        String.format("%s: %s: UNORDERED (try calculate packet #%d after #%d)",
+                                _getInstName(),
+                                _packetAsString,
+                                id,
+                                prv.getKey()));
+
+                System.exit(-1);
+
+            } else if (ts < prvTs) {
+                throw new IllegalStateException(
+                        String.format("try calculate packet #%d(ts=%d) after #%d(ts=%d)",
+                                id,
+                                ts,
+                                prvId,
+                                prvTs));
+            }
         }
     }
 
@@ -71,19 +96,7 @@ public class CalculatorImpl
                 ts,
                 data);
 
-        Long prvId = checkOrder(key, id);
-        if (prvId != null) {
-
-            getLogger().severe(
-                    String.format("%s: %s: FAILED (try calculate packet %d after %d)",
-                            _getInstName(),
-                            _packetAsString,
-                            id,
-                            prvId));
-
-//            return null;
-            System.exit(-1);
-        }
+        checkOrder(key, id, ts, _packetAsString);
 
         if (now - ts <= TIMEOUT) {
 
